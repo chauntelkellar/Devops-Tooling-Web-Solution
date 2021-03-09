@@ -380,7 +380,8 @@ sudo vi /etc/fstab
 mysql -u webaccess -h 192.168.1.120 -p '2020Over'
 ```
 
-20. Testing access via browser on http://192.168.121, success!
+20. Testing access via browser on http://192.168.1.121, success!
+![screenshot/toolingwebsite.png](/screenshot/toolingwebsite.png)
 
 References
 
