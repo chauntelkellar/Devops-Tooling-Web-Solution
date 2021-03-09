@@ -155,7 +155,7 @@ sudo systemctl enable mariadb.service
 systemctl start mariadb.service
 ```
 
-6. Whitelist known IP submet range to allow traffic, allow HTTP, and allow HTTPS, allow SQL connection from a known submet range, and enable firewall
+6. Whitelist known IP subnet range to allow traffic, allow HTTP, and allow HTTPS, allow SQL connection from a known submet range, and enable firewall
 
 ```bash
 sudo ufw allow from 192.168.1.0/24
@@ -231,7 +231,7 @@ Output:
 
 ```bash
 sunrpc on /var/lib/nfs/rpc_pipefs type rpc_pipefs (rw,relatime)
-192.168.1.1178:/mnt/html on /var/www type nfs4 (rw,relatime,vers=4.2,rsize=262144,wsize=262144,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.1.121,local_lock=none,addr=192.168.1.178)
+192.168.1.178:/mnt/html on /var/www type nfs4 (rw,relatime,vers=4.2,rsize=262144,wsize=262144,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.1.178,local_lock=none,addr=192.168.1.178)
 ```
 
 6. Enable mount to be persistent
@@ -244,4 +244,147 @@ vi /etc/fstab
 #pasted the following value in the file
 echo "192.168.1.178:/mnt/html                  /var/www	          nfs     defaults        0 0" >> /etc/fstab
 ```
+
+6. Install pache, php, and mariadb
+
+```bash
+sudo dnf install httpd php php-mysqlnd
+sudo dnf install mariadb-server -y
+sudo systemctl start mariadb 
+```
+7. Configure Apache to serve contents over HTTP/S and mysql and reload the firewall to apply changes
+
+```bash
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=mysql
+sudo firewall-cmd --reload
+```
+
+8. Start Apache webserver
+
+```bash
+sudo systemctl start httpd
+sudo systemctl status httpd
+```
+
+9. check mount on webserver 
+
+```bash
+df -h
+```
+
+```bash
+[root@osboxes html]# df -h
+Filesystem               Size  Used Avail Use% Mounted on
+devtmpfs                 887M     0  887M   0% /dev
+tmpfs                    914M     0  914M   0% /dev/shm
+tmpfs                    914M  9.6M  904M   2% /run
+tmpfs                    914M     0  914M   0% /sys/fs/cgroup
+/dev/sda2                236G  6.3G  230G   3% /
+/dev/sda5                254G  2.0G  252G   1% /home
+/dev/sda1                976M  263M  646M  29% /boot
+tmpfs                    183M  1.2M  182M   1% /run/user/42
+tmpfs                    183M  4.6M  179M   3% /run/user/1000
+/dev/sr0                  59M   59M     0 100% /run/media/osboxes/VBox_GAs_6.1.17
+192.168.1.178:/mnt/html 1014M   40M  975M   4% /var/www
+```
+
+10. Mount httpd log to /mnt/logs
+
+```bash
+mount -t nfs 192.168.1.178:/mnt/logs /var/log/httpd
+```
+
+11. Install git and clone repo for tooling to the /tmp folder
+
+```bash
+sudo dnf install git -y
+git clone https://github.com/chauntelkellar/tooling.git /tmp/tooling
+```
+
+12. Copy /tmp/tooling/html folder contents to /var/www/html
+
+```bash
+cp -R /tmp/tooling/html /var/www/html
+```
+
+ Showing /var/www/html folder contents:
+
+```bash
+ls -ltr /var/www/html/
+total 40
+-rwxr-xr-x. 1 apache apache 2964 Mar 08 11:54 admin_tooling.php
+-rwxr-xr-x. 1 apache apache 1531 Mar 08 11:54 create_user.php
+-rwxr-xr-x. 1 apache apache 4353 Mar 08 11:54 functions.php
+drwxr-xr-x. 2 apache apache  183 Mar 08 11:54 img
+-rwxr-xr-x. 1 apache apache 3217 Mar 08 11:54 index.php
+-rwxr-xr-x. 1 apache apache  781 Mar 08 11:54 login.php
+-rwxr-xr-x. 1 apache apache   19 Mar 08 11:54 README.md
+-rwxr-xr-x. 1 apache apache 1097 Mar 08 11:54 register.php
+-rwxr-xr-x. 1 apache apache 1704 Mar 08 11:54 style.css
+-rwxr-xr-x. 1 apache apache 1027 Mar 08 11:54 tooling_stylesheets.css
+```
+
+13. Change permissions
+
+Changing folder permission and chmod permission
+
+```bash
+sudo chown -R apache:apache /var/www/
+chmod 770 -R /var/www
+```
+
+14. Amend httpd.conf file to reference index.php file instead of default index.html
+
+```bash
+sudo vi /etc/httpd/conf/httpd.conf
+#Added in index.php before index.html
+
+<IfModule dir_module>
+    DirectoryIndex index.php index.html
+</IfModule>
+
+```
+
+15. Updated db setting in functions.php file
+
+```bash
+sudo vi /var/www/html/functions.php
+
+#added in file
+$db = mysqli_connect('192.168.1.120', 'webaccess', '2020Over', 'tooling');
+
+#save and exit
+:wq!
+```
+
+16. Mount logs  
+
+```bash
+mount -t nfs 192.168.1.178:/mnt/logs /var/log/httpd/
+```
+
+17. Make persistent
+
+```bash
+sudo vi /etc/fstab
+
+#add below to EOF
+192.168.1.178:/mnt/logs                  /var/log/httpd    nfs            defaults        0 0
+```
+
+19. Restarted mariadb and httpd and connected to remote sql
+
+```bash
+mysql -u webaccess -h 192.168.1.120 -p '2020Over'
+```
+
+20. Testing access via browser on http://192.168.121, success!
+
+References
+
+[How to Set Up NFS Server and Client on CentOS 8](https://www.tecmint.com/install-nfs-server-on-centos-8/)
+
+[Configuring MariaDB for Remote Client Access](https://mariadb.com/kb/en/configuring-mariadb-for-remote-client-access/)
 
